@@ -108,28 +108,40 @@ export function generateCostSheetPDF(sheet: CostSheet) {
 
   // Line Items Table
   const curr = sheet.currency || 'INR';
-  const tableData = (sheet.line_items || []).map((item, index) => [
-    index + 1,
-    item.description,
-    `${curr} ${Number(item.unit_purchase).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    Number(item.quantity).toLocaleString(),
-    item.uom || 'Each',
-    `${Number(item.margin_percentage).toFixed(2)}%`,
-    `${curr} ${Number(item.margin_value || (Number(item.sub_total || item.total_sale) - Number(item.total_purchase))).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    `${curr} ${Number(item.unit_sale).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    `${curr} ${Number(item.sub_total || item.total_sale).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    item.tax_description || '-',
-    `${curr} ${Number(item.total || item.sub_total || item.total_sale).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-  ]);
+  const tableData = (sheet.line_items || []).map((item, index) => {
+    const qty = Number(item.quantity) || 1;
+    const uSale = Number(item.unit_sale) || 0;
+    const subTot = item.sub_total !== undefined ? Number(item.sub_total) : (uSale * qty);
+    const cgstRate = Number(item.cgst_rate !== undefined && item.cgst_rate !== null ? item.cgst_rate : 0);
+    const sgstRate = Number(item.sgst_rate !== undefined && item.sgst_rate !== null ? item.sgst_rate : 0);
+    const cgstAmt = item.cgst_amount !== undefined ? Number(item.cgst_amount) : (subTot * (cgstRate / 100));
+    const sgstAmt = item.sgst_amount !== undefined ? Number(item.sgst_amount) : (subTot * (sgstRate / 100));
+    const rowTot = item.total !== undefined ? Number(item.total) : (subTot + cgstAmt + sgstAmt);
+
+    return [
+      index + 1,
+      item.description,
+      `${curr} ${Number(item.unit_purchase).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      Number(item.quantity).toLocaleString(),
+      item.uom || 'Each',
+      `${Number(item.margin_percentage).toFixed(2)}%`,
+      `${curr} ${Number(item.margin_value || (subTot - Number(item.total_purchase))).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      `${curr} ${uSale.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      `${curr} ${subTot.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      `${cgstRate}% (${curr} ${cgstAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`,
+      `${sgstRate}% (${curr} ${sgstAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`,
+      `${curr} ${rowTot.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    ];
+  });
 
   autoTable(doc, {
     startY: 160,
-    head: [['Sr. No', 'Description', 'Purchase Price', 'Qty', 'UOM', 'Margin', 'Margin Value', 'Sales Prices', 'Sub-Total', 'Tax', 'Total']],
+    head: [['Sr. No', 'Description', 'Purchase Price', 'Qty', 'UOM', 'Margin', 'Margin Value', 'Sales Prices', 'Sub-Total', 'CGST', 'SGST', 'Total']],
     body: tableData,
     theme: 'grid',
     styles: {
-      fontSize: 7.5,
-      cellPadding: 3,
+      fontSize: 7,
+      cellPadding: 2.5,
       textColor: [30, 41, 59],
     },
     headStyles: {
@@ -139,17 +151,18 @@ export function generateCostSheetPDF(sheet: CostSheet) {
       halign: 'left',
     },
     columnStyles: {
-      0: { cellWidth: 22, halign: 'center' },
+      0: { cellWidth: 20, halign: 'center' },
       1: { cellWidth: 'auto' },
-      2: { cellWidth: 55, halign: 'right' },
-      3: { cellWidth: 28, halign: 'center' },
-      4: { cellWidth: 35, halign: 'center' },
-      5: { cellWidth: 45, halign: 'center' },
-      6: { cellWidth: 55, halign: 'right' },
-      7: { cellWidth: 55, halign: 'right' },
-      8: { cellWidth: 55, halign: 'right' },
-      9: { cellWidth: 65, halign: 'left' },
-      10: { cellWidth: 65, halign: 'right' },
+      2: { cellWidth: 48, halign: 'right' },
+      3: { cellWidth: 24, halign: 'center' },
+      4: { cellWidth: 30, halign: 'center' },
+      5: { cellWidth: 38, halign: 'center' },
+      6: { cellWidth: 48, halign: 'right' },
+      7: { cellWidth: 48, halign: 'right' },
+      8: { cellWidth: 48, halign: 'right' },
+      9: { cellWidth: 52, halign: 'right' },
+      10: { cellWidth: 52, halign: 'right' },
+      11: { cellWidth: 55, halign: 'right' },
     },
     margin: { left: 20, right: 20 },
   });

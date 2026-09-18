@@ -44,6 +44,10 @@ export interface LineItem {
   uom?: string;
   margin_value?: number;
   sub_total?: number;
+  cgst_rate?: number;
+  cgst_amount?: number;
+  sgst_rate?: number;
+  sgst_amount?: number;
   tax_description?: string;
   total?: number;
 }

@@ -147,15 +147,54 @@ export const CostSheetModal: React.FC<CostSheetModalProps> = ({
     try {
       const data = await apiRequest(`/api/cost-sheets/${id}`);
       setFullCostSheet(data);
-      const normalizedItems = (data.line_items || []).map((item: any) => ({
-        ...item,
-        unit_purchase: Number(item.unit_purchase) || 0,
-        unit_sale: Number(item.unit_sale) || 0,
-        quantity: Number(item.quantity) || 1,
-        total_purchase: Number(item.total_purchase) || 0,
-        total_sale: Number(item.total_sale) || 0,
-        margin_percentage: Number(item.margin_percentage) || 0,
-      }));
+      const normalizedItems = (data.line_items || []).map((item: any) => {
+        const qty = Number(item.quantity) || 1;
+        const uPur = Number(item.unit_purchase) || 0;
+        const uSale = Number(item.unit_sale) || 0;
+        const subTot = item.sub_total !== undefined ? Number(item.sub_total) : (uSale * qty);
+
+        let cgstRate = item.cgst_rate !== undefined && item.cgst_rate !== null ? Number(item.cgst_rate) : 0;
+        let sgstRate = item.sgst_rate !== undefined && item.sgst_rate !== null ? Number(item.sgst_rate) : 0;
+
+        if (cgstRate === 0 && sgstRate === 0 && item.tax_description) {
+          const cgstM = item.tax_description.match(/CGST\s*[@:]?\s*(\d+(?:\.\d+)?)%/i);
+          const sgstM = item.tax_description.match(/SGST\s*[@:]?\s*(\d+(?:\.\d+)?)%/i);
+          if (cgstM) cgstRate = parseFloat(cgstM[1]);
+          if (sgstM) sgstRate = parseFloat(sgstM[1]);
+          if (cgstRate > 0 && sgstRate === 0) sgstRate = cgstRate;
+          else if (sgstRate > 0 && cgstRate === 0) cgstRate = sgstRate;
+          else if (cgstRate === 0 && sgstRate === 0) {
+            const genM = item.tax_description.match(/(\d+(?:\.\d+)?)%/);
+            if (genM) {
+              const totTax = parseFloat(genM[1]);
+              cgstRate = parseFloat((totTax / 2).toFixed(2));
+              sgstRate = parseFloat((totTax / 2).toFixed(2));
+            }
+          }
+        }
+
+        const cgstAmt = parseFloat((subTot * (cgstRate / 100)).toFixed(2));
+        const sgstAmt = parseFloat((subTot * (sgstRate / 100)).toFixed(2));
+        const total = parseFloat((subTot + cgstAmt + sgstAmt).toFixed(2));
+
+        return {
+          ...item,
+          unit_purchase: uPur,
+          unit_sale: uSale,
+          quantity: qty,
+          total_purchase: Number(item.total_purchase) || (uPur * qty),
+          total_sale: subTot,
+          sub_total: subTot,
+          margin_percentage: Number(item.margin_percentage) || 0,
+          margin_value: item.margin_value !== undefined ? Number(item.margin_value) : (subTot - (uPur * qty)),
+          cgst_rate: cgstRate,
+          cgst_amount: cgstAmt,
+          sgst_rate: sgstRate,
+          sgst_amount: sgstAmt,
+          tax_description: `CGST @${cgstRate}%: ${cgstAmt.toFixed(2)} | SGST @${sgstRate}%: ${sgstAmt.toFixed(2)}`,
+          total: total,
+        };
+      });
       setSheetData({
         ...data,
         discount_value: Number(data.discount_value) || 0,
@@ -211,7 +250,7 @@ export const CostSheetModal: React.FC<CostSheetModalProps> = ({
   const totals = computeTotals();
 
   // Line Item Handlers
-  const handleLineItemChange = (index: number, field: keyof LineItem, val: any) => {
+  const handleLineItemChange = (index: number, field: keyof LineItem | string, val: any) => {
     const updated = [...(sheetData.line_items || [])];
     const current = { ...updated[index], [field]: val };
 
@@ -224,21 +263,27 @@ export const CostSheetModal: React.FC<CostSheetModalProps> = ({
     const marginVal = subTotal - totPur;
     const marginPct = subTotal > 0 ? (marginVal / subTotal) * 100 : 0;
 
+    const cgstRate = Number(field === 'cgst_rate' ? val : current.cgst_rate) || 0;
+    const sgstRate = Number(field === 'sgst_rate' ? val : current.sgst_rate) || 0;
+
+    const cgstAmt = parseFloat((subTotal * (cgstRate / 100)).toFixed(2));
+    const sgstAmt = parseFloat((subTotal * (sgstRate / 100)).toFixed(2));
+    const totalWithTax = parseFloat((subTotal + cgstAmt + sgstAmt).toFixed(2));
+
+    current.quantity = qty;
+    current.unit_purchase = uPur;
+    current.unit_sale = uSale;
     current.total_purchase = totPur;
-    current.total_sale = subTotal; // We treat total_sale as sub_total for backwards compatibility and logic
+    current.total_sale = subTotal;
     current.sub_total = subTotal;
     current.margin_value = marginVal;
     current.margin_percentage = parseFloat(marginPct.toFixed(2));
-
-    const taxRateMatch = current.tax_description?.match(/@(\d+(?:\.\d+)?)%/);
-    if (taxRateMatch) {
-      const rate = parseFloat(taxRateMatch[1]);
-      const taxAmt = subTotal * (rate / 100);
-      current.tax_description = current.tax_description?.replace(/:\s*[\d,]+\.\d{2}/, `: ${taxAmt.toFixed(2)}`);
-      current.total = subTotal + taxAmt;
-    } else {
-      current.total = subTotal; // Fallback
-    }
+    current.cgst_rate = cgstRate;
+    current.cgst_amount = cgstAmt;
+    current.sgst_rate = sgstRate;
+    current.sgst_amount = sgstAmt;
+    current.tax_description = `CGST @${cgstRate}%: ${cgstAmt.toFixed(2)} | SGST @${sgstRate}%: ${sgstAmt.toFixed(2)}`;
+    current.total = totalWithTax;
 
     updated[index] = current;
     setSheetData({ ...sheetData, line_items: updated });
@@ -252,11 +297,17 @@ export const CostSheetModal: React.FC<CostSheetModalProps> = ({
         quantity: 1,
         unit_purchase: 0,
         unit_sale: 0,
+        uom: 'Box',
         total_purchase: 0,
         total_sale: 0,
         margin_percentage: 0,
         margin_value: 0,
         sub_total: 0,
+        cgst_rate: 9,
+        cgst_amount: 0,
+        sgst_rate: 9,
+        sgst_amount: 0,
+        tax_description: 'CGST @9%: 0.00 | SGST @9%: 0.00',
         total: 0,
       },
     ];
@@ -944,8 +995,15 @@ export const CostSheetModal: React.FC<CostSheetModalProps> = ({
                             <th className="p-2.5 w-28 text-right">Margin Value (₹)</th>
                             <th className="p-2.5 w-28 text-right">Sales Price (₹)</th>
                             <th className="p-2.5 w-28 text-right">Sub-Total (₹)</th>
-                            <th className="p-2.5 w-36">Tax</th>
-                            <th className="p-2.5 w-28 text-right">Total (₹)</th>
+                            <th className="p-2.5 w-28 text-center">
+                              <div>CGST</div>
+                              <div className="text-[10px] text-slate-300 font-normal">% / Amt (₹)</div>
+                            </th>
+                            <th className="p-2.5 w-28 text-center">
+                              <div>SGST</div>
+                              <div className="text-[10px] text-slate-300 font-normal">% / Amt (₹)</div>
+                            </th>
+                            <th className="p-2.5 w-32 text-right">Total (₹)</th>
                             <th className="p-2.5 w-10 text-center">Del</th>
                           </tr>
                         </thead>
@@ -965,7 +1023,12 @@ export const CostSheetModal: React.FC<CostSheetModalProps> = ({
                             const itemTotPur = Number(item.total_purchase) || (itemUnitPur * itemQty);
                             const itemSubTot = Number(item.sub_total || item.total_sale) || (itemUnitSale * itemQty);
                             const itemMarginVal = Number(item.margin_value) || (itemSubTot - itemTotPur);
-                            const itemTotal = Number(item.total) || itemSubTot;
+
+                            const itemCgstRate = Number(item.cgst_rate !== undefined && item.cgst_rate !== null ? item.cgst_rate : 0);
+                            const itemSgstRate = Number(item.sgst_rate !== undefined && item.sgst_rate !== null ? item.sgst_rate : 0);
+                            const itemCgstAmt = parseFloat((itemSubTot * (itemCgstRate / 100)).toFixed(2));
+                            const itemSgstAmt = parseFloat((itemSubTot * (itemSgstRate / 100)).toFixed(2));
+                            const itemTotal = parseFloat((itemSubTot + itemCgstAmt + itemSgstAmt).toFixed(2));
 
                             return (
                               <tr key={idx} className="hover:bg-slate-50 transition">
@@ -1030,15 +1093,46 @@ export const CostSheetModal: React.FC<CostSheetModalProps> = ({
                                   ₹{itemSubTot.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
                                 <td className="p-2">
-                                  <input
-                                    type="text"
-                                    placeholder="CGST @9%: 0.00"
-                                    value={item.tax_description || ''}
-                                    onChange={(e) => handleLineItemChange(idx, 'tax_description', e.target.value)}
-                                    className="w-full text-xs bg-white border border-slate-200 rounded p-1.5 focus:border-blue-500 focus:outline-none font-medium text-slate-600"
-                                  />
+                                  <div className="flex flex-col gap-1 items-end">
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        min={0}
+                                        max={100}
+                                        placeholder="0"
+                                        value={item.cgst_rate !== undefined && item.cgst_rate !== null ? item.cgst_rate : ''}
+                                        onChange={(e) => handleLineItemChange(idx, 'cgst_rate', parseFloat(e.target.value) || 0)}
+                                        className="w-14 text-xs text-right bg-white border border-slate-200 rounded p-1 focus:border-blue-500 focus:outline-none font-medium text-slate-700"
+                                      />
+                                      <span className="text-[11px] text-slate-500 font-semibold">%</span>
+                                    </div>
+                                    <div className="text-[11px] font-semibold text-slate-600">
+                                      ₹{itemCgstAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </div>
+                                  </div>
                                 </td>
-                                <td className="p-2 text-right font-bold text-slate-900">
+                                <td className="p-2">
+                                  <div className="flex flex-col gap-1 items-end">
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        min={0}
+                                        max={100}
+                                        placeholder="0"
+                                        value={item.sgst_rate !== undefined && item.sgst_rate !== null ? item.sgst_rate : ''}
+                                        onChange={(e) => handleLineItemChange(idx, 'sgst_rate', parseFloat(e.target.value) || 0)}
+                                        className="w-14 text-xs text-right bg-white border border-slate-200 rounded p-1 focus:border-blue-500 focus:outline-none font-medium text-slate-700"
+                                      />
+                                      <span className="text-[11px] text-slate-500 font-semibold">%</span>
+                                    </div>
+                                    <div className="text-[11px] font-semibold text-slate-600">
+                                      ₹{itemSgstAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="p-2 text-right font-bold text-slate-900 whitespace-nowrap">
                                   ₹{itemTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
                                 <td className="p-2 text-center">
@@ -1054,6 +1148,39 @@ export const CostSheetModal: React.FC<CostSheetModalProps> = ({
                             );
                           })}
                         </tbody>
+                        <tfoot className="bg-slate-100 font-semibold text-slate-800 border-t-2 border-slate-300">
+                          {(() => {
+                            const totPurSum = sheetData.line_items.reduce((s, it) => s + (Number(it.total_purchase) || ((Number(it.unit_purchase) || 0) * (Number(it.quantity) || 1))), 0);
+                            const totSubSum = sheetData.line_items.reduce((s, it) => s + (Number(it.sub_total || it.total_sale) || ((Number(it.unit_sale) || 0) * (Number(it.quantity) || 1))), 0);
+                            const totMarginValSum = totSubSum - totPurSum;
+                            const totCgstSum = sheetData.line_items.reduce((s, it) => {
+                              const sub = Number(it.sub_total || it.total_sale) || ((Number(it.unit_sale) || 0) * (Number(it.quantity) || 1));
+                              const rate = Number(it.cgst_rate !== undefined && it.cgst_rate !== null ? it.cgst_rate : 0);
+                              return s + (sub * (rate / 100));
+                            }, 0);
+                            const totSgstSum = sheetData.line_items.reduce((s, it) => {
+                              const sub = Number(it.sub_total || it.total_sale) || ((Number(it.unit_sale) || 0) * (Number(it.quantity) || 1));
+                              const rate = Number(it.sgst_rate !== undefined && it.sgst_rate !== null ? it.sgst_rate : 0);
+                              return s + (sub * (rate / 100));
+                            }, 0);
+                            const grandTot = totSubSum + totCgstSum + totSgstSum;
+
+                            return (
+                              <tr>
+                                <td colSpan={2} className="p-2.5 text-right uppercase text-[11px] font-bold text-slate-600">Total</td>
+                                <td className="p-2.5 text-right">₹{totPurSum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                <td colSpan={3} className="p-2.5 text-center text-[11px] text-slate-500">—</td>
+                                <td className="p-2.5 text-right">₹{totMarginValSum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                <td className="p-2.5 text-center text-[11px] text-slate-500">—</td>
+                                <td className="p-2.5 text-right text-blue-900 font-bold">₹{totSubSum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                <td className="p-2.5 text-right text-slate-700">₹{totCgstSum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                <td className="p-2.5 text-right text-slate-700">₹{totSgstSum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                <td className="p-2.5 text-right text-emerald-900 font-extrabold text-sm whitespace-nowrap">₹{grandTot.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                <td></td>
+                              </tr>
+                            );
+                          })()}
+                        </tfoot>
                       </table>
                     </div>
                   )}

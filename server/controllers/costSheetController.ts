@@ -47,7 +47,22 @@ async function generateCostSheetNumber(): Promise<string> {
 }
 
 export function computeDealProfitability(
-  lineItems: Array<{ description?: string; unit_purchase: number; unit_sale: number; quantity: number; uom?: string; margin_percentage?: number; margin_value?: number; sub_total?: number; tax_description?: string; total?: number }>,
+  lineItems: Array<{
+    description?: string;
+    unit_purchase: number;
+    unit_sale: number;
+    quantity: number;
+    uom?: string;
+    margin_percentage?: number;
+    margin_value?: number;
+    sub_total?: number;
+    cgst_rate?: number;
+    cgst_amount?: number;
+    sgst_rate?: number;
+    sgst_amount?: number;
+    tax_description?: string;
+    total?: number;
+  }>,
   discountType: 'Percentage' | 'Value',
   discountValue: number,
   consultationCharges: number,
@@ -65,14 +80,30 @@ export function computeDealProfitability(
     const marginVal = item.margin_value !== undefined ? Number(item.margin_value) : (subTot - lp);
     const margin = subTot > 0 ? (marginVal / subTot) * 100 : (Number(item.margin_percentage) || 0);
 
+    let cgstRate = item.cgst_rate !== undefined && item.cgst_rate !== null ? Number(item.cgst_rate) : 0;
+    let sgstRate = item.sgst_rate !== undefined && item.sgst_rate !== null ? Number(item.sgst_rate) : 0;
+
     const taxDesc = item.tax_description || '';
-    let taxAmt = 0;
-    const taxRateMatch = taxDesc.match(/@(\d+(?:\.\d+)?)%/);
-    if (taxRateMatch) {
-      const rate = parseFloat(taxRateMatch[1]);
-      taxAmt = subTot * (rate / 100);
+    if (cgstRate === 0 && sgstRate === 0 && taxDesc) {
+      const cgstM = taxDesc.match(/CGST\s*[@:]?\s*(\d+(?:\.\d+)?)%/i);
+      const sgstM = taxDesc.match(/SGST\s*[@:]?\s*(\d+(?:\.\d+)?)%/i);
+      if (cgstM) cgstRate = parseFloat(cgstM[1]);
+      if (sgstM) sgstRate = parseFloat(sgstM[1]);
+      if (cgstRate > 0 && sgstRate === 0) sgstRate = cgstRate;
+      else if (sgstRate > 0 && cgstRate === 0) cgstRate = sgstRate;
+      else if (cgstRate === 0 && sgstRate === 0) {
+        const genM = taxDesc.match(/(\d+(?:\.\d+)?)%/);
+        if (genM) {
+          const totTax = parseFloat(genM[1]);
+          cgstRate = parseFloat((totTax / 2).toFixed(2));
+          sgstRate = parseFloat((totTax / 2).toFixed(2));
+        }
+      }
     }
-    const tot = item.total !== undefined ? Number(item.total) : (subTot + taxAmt);
+
+    const cgstAmt = parseFloat((subTot * (cgstRate / 100)).toFixed(2));
+    const sgstAmt = parseFloat((subTot * (sgstRate / 100)).toFixed(2));
+    const tot = parseFloat((subTot + cgstAmt + sgstAmt).toFixed(2));
 
     totalPurchase += lp;
     totalSale += subTot;
@@ -88,8 +119,12 @@ export function computeDealProfitability(
       margin_value: parseFloat(marginVal.toFixed(2)),
       sub_total: parseFloat(subTot.toFixed(2)),
       uom: item.uom || 'Each',
-      tax_description: taxDesc,
-      total: parseFloat(tot.toFixed(2)),
+      cgst_rate: cgstRate,
+      cgst_amount: cgstAmt,
+      sgst_rate: sgstRate,
+      sgst_amount: sgstAmt,
+      tax_description: taxDesc || `CGST @${cgstRate}%: ${cgstAmt.toFixed(2)} | SGST @${sgstRate}%: ${sgstAmt.toFixed(2)}`,
+      total: tot,
     };
   });
 
@@ -344,8 +379,12 @@ export async function createCostSheet(req: AuthRequest, res: Response) {
     // Insert line items
     for (const item of metrics.lineItems) {
       await query(`
-        INSERT INTO line_items (cost_sheet_id, description, unit_purchase, unit_sale, quantity, total_purchase, total_sale, margin_percentage, uom, margin_value, sub_total, tax_description, total)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        INSERT INTO line_items (
+          cost_sheet_id, description, unit_purchase, unit_sale, quantity,
+          total_purchase, total_sale, margin_percentage, uom, margin_value,
+          sub_total, cgst_rate, cgst_amount, sgst_rate, sgst_amount, tax_description, total
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       `, [
         createdSheet.id,
         item.description,
@@ -358,6 +397,10 @@ export async function createCostSheet(req: AuthRequest, res: Response) {
         item.uom || 'Each',
         item.margin_value || 0,
         item.sub_total || 0,
+        item.cgst_rate || 0,
+        item.cgst_amount || 0,
+        item.sgst_rate || 0,
+        item.sgst_amount || 0,
         item.tax_description || '',
         item.total || 0
       ]);
@@ -499,8 +542,12 @@ export async function updateCostSheet(req: AuthRequest, res: Response) {
     await query('DELETE FROM line_items WHERE cost_sheet_id = $1', [id]);
     for (const item of metrics.lineItems) {
       await query(`
-        INSERT INTO line_items (cost_sheet_id, description, unit_purchase, unit_sale, quantity, total_purchase, total_sale, margin_percentage, uom, margin_value, sub_total, tax_description, total)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        INSERT INTO line_items (
+          cost_sheet_id, description, unit_purchase, unit_sale, quantity,
+          total_purchase, total_sale, margin_percentage, uom, margin_value,
+          sub_total, cgst_rate, cgst_amount, sgst_rate, sgst_amount, tax_description, total
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       `, [
         id,
         item.description,
@@ -513,6 +560,10 @@ export async function updateCostSheet(req: AuthRequest, res: Response) {
         item.uom || 'Each',
         item.margin_value || 0,
         item.sub_total || 0,
+        item.cgst_rate || 0,
+        item.cgst_amount || 0,
+        item.sgst_rate || 0,
+        item.sgst_amount || 0,
         item.tax_description || '',
         item.total || 0
       ]);

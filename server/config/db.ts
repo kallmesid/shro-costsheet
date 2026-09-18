@@ -160,6 +160,10 @@ export async function initDb() {
       uom VARCHAR(50) DEFAULT 'Each',
       margin_value NUMERIC(15,2) DEFAULT 0.00,
       sub_total NUMERIC(15,2) DEFAULT 0.00,
+      cgst_rate NUMERIC(5,2) DEFAULT 0.00,
+      cgst_amount NUMERIC(15,2) DEFAULT 0.00,
+      sgst_rate NUMERIC(5,2) DEFAULT 0.00,
+      sgst_amount NUMERIC(15,2) DEFAULT 0.00,
       tax_description TEXT,
       total NUMERIC(15,2) DEFAULT 0.00
     );
@@ -167,6 +171,10 @@ export async function initDb() {
     ALTER TABLE line_items ADD COLUMN IF NOT EXISTS uom VARCHAR(50) DEFAULT 'Each';
     ALTER TABLE line_items ADD COLUMN IF NOT EXISTS margin_value NUMERIC(15,2) DEFAULT 0.00;
     ALTER TABLE line_items ADD COLUMN IF NOT EXISTS sub_total NUMERIC(15,2) DEFAULT 0.00;
+    ALTER TABLE line_items ADD COLUMN IF NOT EXISTS cgst_rate NUMERIC(5,2) DEFAULT 0.00;
+    ALTER TABLE line_items ADD COLUMN IF NOT EXISTS cgst_amount NUMERIC(15,2) DEFAULT 0.00;
+    ALTER TABLE line_items ADD COLUMN IF NOT EXISTS sgst_rate NUMERIC(5,2) DEFAULT 0.00;
+    ALTER TABLE line_items ADD COLUMN IF NOT EXISTS sgst_amount NUMERIC(15,2) DEFAULT 0.00;
     ALTER TABLE line_items ADD COLUMN IF NOT EXISTS tax_description TEXT;
     ALTER TABLE line_items ADD COLUMN IF NOT EXISTS total NUMERIC(15,2) DEFAULT 0.00;
 

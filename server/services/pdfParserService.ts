@@ -11,6 +11,10 @@ export interface ParsedLineItem {
   sub_total?: number;
   margin_percentage: number;
   margin_value?: number;
+  cgst_rate?: number;
+  cgst_amount?: number;
+  sgst_rate?: number;
+  sgst_amount?: number;
   tax_description?: string;
   tax_amount?: number;
   total?: number;
@@ -180,8 +184,35 @@ export async function parseCostSheetFromPdf(buffer: Buffer): Promise<ParsedCostS
       const ts = sub_tot > 0 ? sub_tot : (us * qty);
       const margin = ts > 0 ? ((ts - tp) / ts) * 100 : margin_pct;
       const mVal = margin_val !== 0 ? margin_val : (ts - tp);
-      const finalTot = total > 0 ? total : ts;
       const finalUs = qty > 0 ? ts / qty : us;
+
+      // Extract ONLY tax percentages from PDF
+      const combinedTaxSearchText = `${tax_desc} ${row.items.map((it: any) => it.str || '').join(' ')}`;
+      let cgstRate = 0;
+      let sgstRate = 0;
+
+      const cgstMatch = combinedTaxSearchText.match(/CGST\s*[@:]?\s*(\d+(?:\.\d+)?)%/i);
+      const sgstMatch = combinedTaxSearchText.match(/SGST\s*[@:]?\s*(\d+(?:\.\d+)?)%/i);
+      if (cgstMatch) cgstRate = parseFloat(cgstMatch[1]);
+      if (sgstMatch) sgstRate = parseFloat(sgstMatch[1]);
+
+      if (cgstRate > 0 && sgstRate === 0) {
+        sgstRate = cgstRate;
+      } else if (sgstRate > 0 && cgstRate === 0) {
+        cgstRate = sgstRate;
+      } else if (cgstRate === 0 && sgstRate === 0) {
+        const genMatch = combinedTaxSearchText.match(/(\d+(?:\.\d+)?)%/);
+        if (genMatch) {
+          const totRate = parseFloat(genMatch[1]);
+          cgstRate = parseFloat((totRate / 2).toFixed(2));
+          sgstRate = parseFloat((totRate / 2).toFixed(2));
+        }
+      }
+
+      // Calculate the actual tax amounts and total dynamically based on fetched percentage
+      const cgstAmt = parseFloat((ts * (cgstRate / 100)).toFixed(2));
+      const sgstAmt = parseFloat((ts * (sgstRate / 100)).toFixed(2));
+      const finalTot = parseFloat((ts + cgstAmt + sgstAmt).toFixed(2));
 
       lineItems.push({
         sr_no: itemIndex++,
@@ -195,8 +226,12 @@ export async function parseCostSheetFromPdf(buffer: Buffer): Promise<ParsedCostS
         margin_percentage: parseFloat(margin.toFixed(2)),
         margin_value: parseFloat(mVal.toFixed(2)),
         sub_total: parseFloat(ts.toFixed(2)),
-        tax_description: tax_desc || '',
-        total: parseFloat(finalTot.toFixed(2)),
+        cgst_rate: cgstRate,
+        cgst_amount: cgstAmt,
+        sgst_rate: sgstRate,
+        sgst_amount: sgstAmt,
+        tax_description: `CGST @${cgstRate}%: ${cgstAmt.toFixed(2)} | SGST @${sgstRate}%: ${sgstAmt.toFixed(2)}`,
+        total: finalTot,
       });
     });
 
