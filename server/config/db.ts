@@ -22,7 +22,19 @@ if (databaseUrl) {
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
   }
-  pgliteInstance = new PGlite(dbDir);
+  try {
+    pgliteInstance = new PGlite(dbDir);
+  } catch (err) {
+    console.warn('PGlite initialization error detected, resetting database directory...', err);
+    try {
+      fs.rmSync(dbDir, { recursive: true, force: true });
+      fs.mkdirSync(dbDir, { recursive: true });
+      pgliteInstance = new PGlite(dbDir);
+    } catch (retryErr) {
+      console.error('Failed to re-initialize PGlite after reset:', retryErr);
+      throw retryErr;
+    }
+  }
 }
 
 export async function query(sql: string, params: any[] = []): Promise<{ rows: any[]; rowCount: number }> {
