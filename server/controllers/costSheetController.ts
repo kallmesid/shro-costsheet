@@ -47,7 +47,7 @@ async function generateCostSheetNumber(): Promise<string> {
 }
 
 export function computeDealProfitability(
-  lineItems: Array<{ description?: string; unit_purchase: number; unit_sale: number; quantity: number }>,
+  lineItems: Array<{ description?: string; unit_purchase: number; unit_sale: number; quantity: number; uom?: string; margin_percentage?: number; margin_value?: number; sub_total?: number; tax_description?: string; total?: number }>,
   discountType: 'Percentage' | 'Value',
   discountValue: number,
   consultationCharges: number,
@@ -61,11 +61,21 @@ export function computeDealProfitability(
     const up = Number(item.unit_purchase) || 0;
     const us = Number(item.unit_sale) || 0;
     const lp = up * qty;
-    const ls = us * qty;
-    const margin = ls > 0 ? ((ls - lp) / ls) * 100 : 0;
+    const subTot = item.sub_total !== undefined ? Number(item.sub_total) : (us * qty);
+    const marginVal = item.margin_value !== undefined ? Number(item.margin_value) : (subTot - lp);
+    const margin = subTot > 0 ? (marginVal / subTot) * 100 : (Number(item.margin_percentage) || 0);
+
+    const taxDesc = item.tax_description || '';
+    let taxAmt = 0;
+    const taxRateMatch = taxDesc.match(/@(\d+(?:\.\d+)?)%/);
+    if (taxRateMatch) {
+      const rate = parseFloat(taxRateMatch[1]);
+      taxAmt = subTot * (rate / 100);
+    }
+    const tot = item.total !== undefined ? Number(item.total) : (subTot + taxAmt);
 
     totalPurchase += lp;
-    totalSale += ls;
+    totalSale += subTot;
 
     return {
       ...item,
@@ -73,8 +83,13 @@ export function computeDealProfitability(
       unit_purchase: up,
       unit_sale: us,
       total_purchase: parseFloat(lp.toFixed(2)),
-      total_sale: parseFloat(ls.toFixed(2)),
+      total_sale: parseFloat(subTot.toFixed(2)),
       margin_percentage: parseFloat(margin.toFixed(2)),
+      margin_value: parseFloat(marginVal.toFixed(2)),
+      sub_total: parseFloat(subTot.toFixed(2)),
+      uom: item.uom || 'Each',
+      tax_description: taxDesc,
+      total: parseFloat(tot.toFixed(2)),
     };
   });
 
@@ -329,8 +344,8 @@ export async function createCostSheet(req: AuthRequest, res: Response) {
     // Insert line items
     for (const item of metrics.lineItems) {
       await query(`
-        INSERT INTO line_items (cost_sheet_id, description, unit_purchase, unit_sale, quantity, total_purchase, total_sale, margin_percentage)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO line_items (cost_sheet_id, description, unit_purchase, unit_sale, quantity, total_purchase, total_sale, margin_percentage, uom, margin_value, sub_total, tax_description, total)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       `, [
         createdSheet.id,
         item.description,
@@ -339,7 +354,12 @@ export async function createCostSheet(req: AuthRequest, res: Response) {
         item.quantity,
         item.total_purchase,
         item.total_sale,
-        item.margin_percentage
+        item.margin_percentage,
+        item.uom || 'Each',
+        item.margin_value || 0,
+        item.sub_total || 0,
+        item.tax_description || '',
+        item.total || 0
       ]);
     }
 
@@ -479,8 +499,8 @@ export async function updateCostSheet(req: AuthRequest, res: Response) {
     await query('DELETE FROM line_items WHERE cost_sheet_id = $1', [id]);
     for (const item of metrics.lineItems) {
       await query(`
-        INSERT INTO line_items (cost_sheet_id, description, unit_purchase, unit_sale, quantity, total_purchase, total_sale, margin_percentage)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO line_items (cost_sheet_id, description, unit_purchase, unit_sale, quantity, total_purchase, total_sale, margin_percentage, uom, margin_value, sub_total, tax_description, total)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       `, [
         id,
         item.description,
@@ -489,7 +509,12 @@ export async function updateCostSheet(req: AuthRequest, res: Response) {
         item.quantity,
         item.total_purchase,
         item.total_sale,
-        item.margin_percentage
+        item.margin_percentage,
+        item.uom || 'Each',
+        item.margin_value || 0,
+        item.sub_total || 0,
+        item.tax_description || '',
+        item.total || 0
       ]);
     }
 

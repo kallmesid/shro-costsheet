@@ -111,22 +111,25 @@ export function generateCostSheetPDF(sheet: CostSheet) {
   const tableData = (sheet.line_items || []).map((item, index) => [
     index + 1,
     item.description,
-    Number(item.quantity).toLocaleString(),
     `${curr} ${Number(item.unit_purchase).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    `${curr} ${Number(item.total_purchase).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    Number(item.quantity).toLocaleString(),
+    item.uom || 'Each',
+    `${Number(item.margin_percentage).toFixed(2)}%`,
+    `${curr} ${Number(item.margin_value || (Number(item.sub_total || item.total_sale) - Number(item.total_purchase))).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     `${curr} ${Number(item.unit_sale).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    `${curr} ${Number(item.total_sale).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    `${Number(item.margin_percentage).toFixed(2)}%`
+    `${curr} ${Number(item.sub_total || item.total_sale).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    item.tax_description || '-',
+    `${curr} ${Number(item.total || item.sub_total || item.total_sale).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
   ]);
 
   autoTable(doc, {
     startY: 160,
-    head: [['#', 'Item Description', 'Qty', 'Unit Purchase', 'Total Purchase', 'Unit Sale', 'Total Sale', 'Margin']],
+    head: [['Sr. No', 'Description', 'Purchase Price', 'Qty', 'UOM', 'Margin', 'Margin Value', 'Sales Prices', 'Sub-Total', 'Tax', 'Total']],
     body: tableData,
     theme: 'grid',
     styles: {
-      fontSize: 8,
-      cellPadding: 4,
+      fontSize: 7.5,
+      cellPadding: 3,
       textColor: [30, 41, 59],
     },
     headStyles: {
@@ -136,16 +139,19 @@ export function generateCostSheetPDF(sheet: CostSheet) {
       halign: 'left',
     },
     columnStyles: {
-      0: { cellWidth: 25, halign: 'center' },
+      0: { cellWidth: 22, halign: 'center' },
       1: { cellWidth: 'auto' },
-      2: { cellWidth: 35, halign: 'center' },
-      3: { cellWidth: 80, halign: 'right' },
-      4: { cellWidth: 85, halign: 'right' },
-      5: { cellWidth: 80, halign: 'right' },
-      6: { cellWidth: 85, halign: 'right' },
-      7: { cellWidth: 55, halign: 'center' },
+      2: { cellWidth: 55, halign: 'right' },
+      3: { cellWidth: 28, halign: 'center' },
+      4: { cellWidth: 35, halign: 'center' },
+      5: { cellWidth: 45, halign: 'center' },
+      6: { cellWidth: 55, halign: 'right' },
+      7: { cellWidth: 55, halign: 'right' },
+      8: { cellWidth: 55, halign: 'right' },
+      9: { cellWidth: 65, halign: 'left' },
+      10: { cellWidth: 65, halign: 'right' },
     },
-    margin: { left: 30, right: 30 },
+    margin: { left: 20, right: 20 },
   });
 
   // Calculate position after table, checking for page overflow

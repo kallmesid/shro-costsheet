@@ -156,8 +156,19 @@ export async function initDb() {
       quantity NUMERIC(15,2) NOT NULL DEFAULT 1.00,
       total_purchase NUMERIC(15,2) NOT NULL DEFAULT 0.00,
       total_sale NUMERIC(15,2) NOT NULL DEFAULT 0.00,
-      margin_percentage NUMERIC(8,2) NOT NULL DEFAULT 0.00
+      margin_percentage NUMERIC(8,2) NOT NULL DEFAULT 0.00,
+      uom VARCHAR(50) DEFAULT 'Each',
+      margin_value NUMERIC(15,2) DEFAULT 0.00,
+      sub_total NUMERIC(15,2) DEFAULT 0.00,
+      tax_description TEXT,
+      total NUMERIC(15,2) DEFAULT 0.00
     );
+
+    ALTER TABLE line_items ADD COLUMN IF NOT EXISTS uom VARCHAR(50) DEFAULT 'Each';
+    ALTER TABLE line_items ADD COLUMN IF NOT EXISTS margin_value NUMERIC(15,2) DEFAULT 0.00;
+    ALTER TABLE line_items ADD COLUMN IF NOT EXISTS sub_total NUMERIC(15,2) DEFAULT 0.00;
+    ALTER TABLE line_items ADD COLUMN IF NOT EXISTS tax_description TEXT;
+    ALTER TABLE line_items ADD COLUMN IF NOT EXISTS total NUMERIC(15,2) DEFAULT 0.00;
 
     CREATE TABLE IF NOT EXISTS approval_logs (
       id SERIAL PRIMARY KEY,

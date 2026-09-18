@@ -164,31 +164,55 @@ export function usePdfLineItemImporter(
 
         const clusterText = (c: any) =>
           c.parts.slice().sort((a: any, b: any) => b.y - a.y).map((it: any) => it.str.trim()).join(' ');
-        const up = num(clusterText(clusters[0]));
-        const qty = num(clusterText(clusters[1])) || 1;
-        const total = num(clusterText(clusters[clusters.length - 1]));
+        
+        let up = 0, qty = 1, uom = 'Box', margin_pct = 0, margin_val = 0, us = 0, sub_tot = 0, tax_desc = '', total = 0;
+
+        if (clusters.length >= 9) {
+          up = num(clusterText(clusters[0]));
+          qty = num(clusterText(clusters[1])) || 1;
+          uom = clusterText(clusters[2]) || 'Box';
+          margin_pct = num(clusterText(clusters[3]));
+          margin_val = num(clusterText(clusters[4]));
+          us = num(clusterText(clusters[5]));
+          sub_tot = num(clusterText(clusters[6]));
+          tax_desc = clusterText(clusters[7]);
+          total = num(clusterText(clusters[clusters.length - 1]));
+        } else if (clusters.length >= 3) {
+          up = num(clusterText(clusters[0]));
+          qty = num(clusterText(clusters[1])) || 1;
+          total = num(clusterText(clusters[clusters.length - 1]));
+          us = qty > 0 ? total / qty : total;
+          sub_tot = total;
+        } else {
+          skipped++;
+          return;
+        }
 
         if (!desc && !up && !total) {
           skipped++;
           return;
         }
 
-        const us = qty > 0 ? total / qty : total;
         const tp = up * qty;
-        const ts = total;
-        const margin = ts > 0 ? ((ts - tp) / ts) * 100 : 0;
+        const ts = sub_tot > 0 ? sub_tot : (us * qty);
+        const margin = ts > 0 ? ((ts - tp) / ts) * 100 : margin_pct;
+        const mVal = margin_val !== 0 ? margin_val : (ts - tp);
+        const finalTot = total > 0 ? total : ts;
+        const finalUs = qty > 0 ? ts / qty : us;
 
         extractedLineItems.push({
           description: desc || '-',
           unit_purchase: parseFloat(up.toFixed(2)),
-          unit_sale: parseFloat(us.toFixed(2)),
+          unit_sale: parseFloat(finalUs.toFixed(2)),
           quantity: qty,
+          uom: uom || 'Box',
           total_purchase: parseFloat(tp.toFixed(2)),
           total_sale: parseFloat(ts.toFixed(2)),
           margin_percentage: parseFloat(margin.toFixed(2)),
-          margin_value: parseFloat((ts - tp).toFixed(2)),
+          margin_value: parseFloat(mVal.toFixed(2)),
           sub_total: parseFloat(ts.toFixed(2)),
-          total: parseFloat(ts.toFixed(2)),
+          tax_description: tax_desc || '',
+          total: parseFloat(finalTot.toFixed(2)),
         });
       });
 

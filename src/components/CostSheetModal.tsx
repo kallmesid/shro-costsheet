@@ -935,14 +935,17 @@ export const CostSheetModal: React.FC<CostSheetModalProps> = ({
                       <table className="w-full text-left text-xs">
                         <thead>
                           <tr className="bg-slate-800 text-white font-semibold">
-                            <th className="p-2.5 w-10 text-center">#</th>
-                            <th className="p-2.5 min-w-[200px]">Product / Description</th>
-                            <th className="p-2.5 w-32 text-right">Unit Purchase (₹)</th>
-                            <th className="p-2.5 w-32 text-right">Unit Sale (₹)</th>
-                            <th className="p-2.5 w-20 text-center">Qty</th>
-                            <th className="p-2.5 w-32 text-right">Total Purchase (₹)</th>
-                            <th className="p-2.5 w-32 text-right">Total Sale (₹)</th>
-                            <th className="p-2.5 w-24 text-center">Margin %</th>
+                            <th className="p-2.5 w-10 text-center">Sr</th>
+                            <th className="p-2.5 min-w-[180px]">Description</th>
+                            <th className="p-2.5 w-28 text-right">Purchase Price (₹)</th>
+                            <th className="p-2.5 w-16 text-center">Qty</th>
+                            <th className="p-2.5 w-20 text-center">UOM</th>
+                            <th className="p-2.5 w-20 text-center">Margin %</th>
+                            <th className="p-2.5 w-28 text-right">Margin Value (₹)</th>
+                            <th className="p-2.5 w-28 text-right">Sales Price (₹)</th>
+                            <th className="p-2.5 w-28 text-right">Sub-Total (₹)</th>
+                            <th className="p-2.5 w-36">Tax</th>
+                            <th className="p-2.5 w-28 text-right">Total (₹)</th>
                             <th className="p-2.5 w-10 text-center">Del</th>
                           </tr>
                         </thead>
@@ -960,7 +963,9 @@ export const CostSheetModal: React.FC<CostSheetModalProps> = ({
                             const itemUnitSale = Number(item.unit_sale) || 0;
                             const itemQty = Number(item.quantity) || 1;
                             const itemTotPur = Number(item.total_purchase) || (itemUnitPur * itemQty);
-                            const itemTotSale = Number(item.total_sale) || (itemUnitSale * itemQty);
+                            const itemSubTot = Number(item.sub_total || item.total_sale) || (itemUnitSale * itemQty);
+                            const itemMarginVal = Number(item.margin_value) || (itemSubTot - itemTotPur);
+                            const itemTotal = Number(item.total) || itemSubTot;
 
                             return (
                               <tr key={idx} className="hover:bg-slate-50 transition">
@@ -968,17 +973,11 @@ export const CostSheetModal: React.FC<CostSheetModalProps> = ({
                                 <td className="p-2">
                                   <textarea
                                     rows={2}
-                                    placeholder="Item description"
+                                    placeholder="Item description & part code"
                                     value={item.description || ''}
                                     onChange={(e) => handleLineItemChange(idx, 'description', e.target.value)}
                                     className="w-full text-xs bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none p-1 font-medium resize-y"
                                   />
-                                  {(item.uom || item.tax_description) && (
-                                    <div className="flex gap-2 text-[10px] text-slate-400 px-1 mt-0.5">
-                                      {item.uom && <span>UOM: <strong className="text-slate-600">{item.uom}</strong></span>}
-                                      {item.tax_description && <span>Tax: <strong className="text-slate-600">{item.tax_description}</strong></span>}
-                                    </div>
-                                  )}
                                 </td>
                                 <td className="p-2">
                                   <input
@@ -993,16 +992,6 @@ export const CostSheetModal: React.FC<CostSheetModalProps> = ({
                                 <td className="p-2">
                                   <input
                                     type="number"
-                                    min={0}
-                                    placeholder="0"
-                                    value={item.unit_sale !== undefined && item.unit_sale !== null ? item.unit_sale : ''}
-                                    onChange={(e) => handleLineItemChange(idx, 'unit_sale', parseFloat(e.target.value) || 0)}
-                                    className="w-full text-xs text-right bg-white border border-slate-200 rounded p-1.5 focus:border-blue-500 focus:outline-none font-medium text-blue-700"
-                                  />
-                                </td>
-                                <td className="p-2">
-                                  <input
-                                    type="number"
                                     min={1}
                                     placeholder="1"
                                     value={item.quantity !== undefined && item.quantity !== null ? item.quantity : 1}
@@ -1010,16 +999,47 @@ export const CostSheetModal: React.FC<CostSheetModalProps> = ({
                                     className="w-full text-xs text-center bg-white border border-slate-200 rounded p-1.5 focus:border-blue-500 focus:outline-none font-semibold"
                                   />
                                 </td>
-                                <td className="p-2 text-right font-medium text-slate-700">
-                                  ₹{itemTotPur.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </td>
-                                <td className="p-2 text-right font-semibold text-blue-800">
-                                  ₹{itemTotSale.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                <td className="p-2">
+                                  <input
+                                    type="text"
+                                    placeholder="Box / Each"
+                                    value={item.uom || 'Box'}
+                                    onChange={(e) => handleLineItemChange(idx, 'uom', e.target.value)}
+                                    className="w-full text-xs text-center bg-white border border-slate-200 rounded p-1.5 focus:border-blue-500 focus:outline-none font-medium"
+                                  />
                                 </td>
                                 <td className="p-2 text-center">
-                                  <span className={`inline-block px-2 py-0.5 text-[11px] font-bold rounded border ${marginClass}`}>
+                                  <span className={`inline-block px-1.5 py-0.5 text-[10px] font-bold rounded border ${marginClass}`}>
                                     {marginNum.toFixed(2)}%
                                   </span>
+                                </td>
+                                <td className="p-2 text-right font-medium text-slate-700">
+                                  ₹{itemMarginVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td className="p-2">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    placeholder="0"
+                                    value={item.unit_sale !== undefined && item.unit_sale !== null ? item.unit_sale : ''}
+                                    onChange={(e) => handleLineItemChange(idx, 'unit_sale', parseFloat(e.target.value) || 0)}
+                                    className="w-full text-xs text-right bg-white border border-slate-200 rounded p-1.5 focus:border-blue-500 focus:outline-none font-medium text-blue-700"
+                                  />
+                                </td>
+                                <td className="p-2 text-right font-semibold text-blue-800">
+                                  ₹{itemSubTot.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td className="p-2">
+                                  <input
+                                    type="text"
+                                    placeholder="CGST @9%: 0.00"
+                                    value={item.tax_description || ''}
+                                    onChange={(e) => handleLineItemChange(idx, 'tax_description', e.target.value)}
+                                    className="w-full text-xs bg-white border border-slate-200 rounded p-1.5 focus:border-blue-500 focus:outline-none font-medium text-slate-600"
+                                  />
+                                </td>
+                                <td className="p-2 text-right font-bold text-slate-900">
+                                  ₹{itemTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
                                 <td className="p-2 text-center">
                                   <button
