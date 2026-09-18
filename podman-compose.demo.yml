@@ -1,0 +1,22 @@
+# Podman Compose configuration for DEMO / STANDALONE mode
+# Compatible with both 'podman compose' (Podman 4.7+) and 'podman-compose' (Python CLI)
+# Uses embedded PostgreSQL (PGlite) with SELinux-compatible volume labeling (:Z)
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shro-cost-sheet-demo
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - JWT_SECRET=shro_demo_secret_jwt_key_2026
+      # Leaving DATABASE_URL unset triggers the embedded PostgreSQL (PGlite) engine!
+    volumes:
+      # The ':Z' flag configures private SELinux context labeling for rootless Podman
+      - ./data:/app/data:Z
+      - ./uploads:/app/uploads:Z

@@ -1,0 +1,30 @@
+================================================================================
+SHRO SYSTEMS - COST SHEET ARCHIVE MANIFEST
+================================================================================
+Cost Sheet No : SHRO/2026-27/001
+Database ID   : 1
+Deal Subject  : TechCorp Campus Core Switch & Firewall Refresh
+Customer      : TechCorp Global India Pvt Ltd
+OEM / Brand   : Fortinet
+Distributor   : Redington India
+Business Unit : Cyber Security
+Salesperson   : Ajay Kumar (ajay.k@shrosystems.com)
+Initiator     : Ajay Kumar (ajay.k@shrosystems.com)
+Current Status: Approved (Stage 7)
+Currency      : INR
+Total Sale    : 5,80,000.00
+Total Purchase: 4,50,000.00
+Net Profit    : 1,29,500.00
+Margin %      : 22.33%
+Created Date  : 2026-08-25T06:40:03.608Z
+Last Manifest : 2026-09-09T07:26:11.099Z
+--------------------------------------------------------------------------------
+ATTACHED DOCUMENTS (PHYSICALLY STORED IN THIS DIRECTORY):
+  1. [Cisco_Quote.pdf]
+     Original Name: "Cisco_Quote.pdf"
+     File Size    : 0.0 KB
+     Uploaded On  : 2026-09-09T07:26:11.073Z
+     MIME Type    : application/pdf
+================================================================================
+* NOTE: This folder is directly recoverable without the web application or database.
+================================================================================

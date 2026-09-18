@@ -1,0 +1,25 @@
+{
+  "cs_number": "SHRO/2026-27/001",
+  "id": 1,
+  "subject": "TechCorp Campus Core Switch & Firewall Refresh",
+  "customer": "TechCorp Global India Pvt Ltd",
+  "salesperson": "Ajay Kumar",
+  "initiator": "Ajay Kumar",
+  "status": "Approved",
+  "current_stage": 7,
+  "total_sale": "580000.00",
+  "total_purchase": "450000.00",
+  "margin_percentage": "22.33",
+  "created_at": "2026-08-25T06:40:03.608Z",
+  "exported_at": "2026-09-09T07:26:11.099Z",
+  "files": [
+    {
+      "id": 34,
+      "filename": "Cisco_Quote.pdf",
+      "original_name": "Cisco_Quote.pdf",
+      "file_size": 31,
+      "mime_type": "application/pdf",
+      "uploaded_at": "2026-09-09T07:26:11.073Z"
+    }
+  ]
+}

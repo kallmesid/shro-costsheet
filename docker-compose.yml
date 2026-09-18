@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # Main Application Service
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shro-cost-sheet-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - JWT_SECRET=your_super_secret_jwt_key_here_change_in_production
+      # Connecting to PostgreSQL container below:
+      - DATABASE_URL=postgresql://postgres:shro_secure_db_pass@db:5432/shro_cost_sheets?sslmode=disable
+      # SMTP Email Configuration (Optional - for automated email notifications)
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_USER=notifications@yourcompany.com
+      - SMTP_PASS=your_email_app_password
+      - SMTP_SECURE=false
+    volumes:
+      - app_uploads:/app/uploads:Z
+      - app_data:/app/data:Z
+    networks:
+      - shro-network
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Dedicated PostgreSQL 16 Service
+  db:
+    image: postgres:16-alpine
+    container_name: shro-postgres-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=shro_secure_db_pass
+      - POSTGRES_DB=shro_cost_sheets
+    volumes:
+      - pg_data:/var/lib/postgresql/data:Z
+    networks:
+      - shro-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d shro_cost_sheets"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  shro-network:
+    driver: bridge
+
+volumes:
+  pg_data:
+  app_uploads:
+  app_data:

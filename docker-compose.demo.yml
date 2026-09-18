@@ -1,0 +1,23 @@
+version: '3.8'
+
+# Docker Compose configuration for DEMO / STANDALONE mode
+# Uses embedded PostgreSQL (PGlite) on local disk — no external database container needed!
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shro-cost-sheet-demo
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - JWT_SECRET=shro_demo_secret_jwt_key_2026
+      # Leaving DATABASE_URL unset triggers the embedded PostgreSQL (PGlite) automatically!
+    volumes:
+      - ./data:/app/data:Z
+      - ./uploads:/app/uploads:Z
+

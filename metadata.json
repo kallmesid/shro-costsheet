@@ -1,0 +1,6 @@
+{
+  "name": "Sales Cost Sheet Management System",
+  "description": "Secure internal web application for quotation cost sheets, deal profitability calculation, and 6-stage sequential approval workflow.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
