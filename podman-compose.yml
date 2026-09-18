@@ -30,8 +30,7 @@ services:
     networks:
       - shro-network
     depends_on:
-      db:
-        condition: service_healthy
+      - db
 
   # Dedicated PostgreSQL 16 Service
   db:
